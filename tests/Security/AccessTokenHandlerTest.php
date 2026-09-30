@@ -38,6 +38,24 @@ final class AccessTokenHandlerTest extends TestCase
         yield 'audience list' => [['another-api', 'identity-api']];
     }
 
+    public function testItAcceptsTokenWhenAnyAudienceIsConfigured(): void
+    {
+        $token = (object) ['iss' => 'identity-link', 'aud' => ['identity-api', 'second-api'], 'sub' => 'user-id'];
+
+        $badge = $this->createHandlerReturning($token, ['identity-api', 'second-api'])->getUserBadgeFrom('token');
+
+        self::assertSame('user-id', $badge->getUserIdentifier());
+    }
+
+    public function testItRejectsTokenWhenNoAudienceIsConfigured(): void
+    {
+        $token = (object) ['iss' => 'identity-link', 'aud' => ['identity-api', 'untrusted-api'], 'sub' => 'user-id'];
+
+        $this->expectException(BadCredentialsException::class);
+
+        $this->createHandlerReturning($token, ['another-api', 'second-api'])->getUserBadgeFrom('token');
+    }
+
     #[DataProvider('invalidClaimsProvider')]
     public function testItRejectsInvalidIssuerOrAudience(object $token): void
     {
@@ -59,7 +77,7 @@ final class AccessTokenHandlerTest extends TestCase
     {
         $token = (object) [
             'iss' => 'identity-link',
-            'aud' => 'identity-api',
+            'aud' => ['another-api', 'identity-api'],
         ];
 
         $badge = $this->createHandlerReturning($token)->getUserBadgeFrom('token');
@@ -91,11 +109,11 @@ final class AccessTokenHandlerTest extends TestCase
         yield 'spaces-only scope' => ['   ', []];
     }
 
-    private function createHandlerReturning(object $decodedToken): AccessTokenHandler&MockObject
+    private function createHandlerReturning(object $decodedToken, array $audiences = ['identity-api']): AccessTokenHandler&MockObject
     {
         $configuration = new AccessTokenHandlerConfiguration(
             issuer: 'identity-link',
-            audience: 'identity-api',
+            audiences: $audiences,
             publicKeyPath: __DIR__.'/Fixtures/public-key.pem',
         );
 

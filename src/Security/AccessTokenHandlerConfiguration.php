@@ -8,10 +8,11 @@ use Firebase\JWT\Key;
 final class AccessTokenHandlerConfiguration
 {
     private readonly ?Key $publicKey;
+    private readonly array $audiences;
 
     public function __construct(
         private readonly string $issuer,
-        private readonly string $audience,
+        array $audiences,
         ?string $publicKeyPath = null,
         private readonly ?string $jwksUri = null,
     )
@@ -20,9 +21,18 @@ final class AccessTokenHandlerConfiguration
             throw new \InvalidArgumentException('The token issuer must not be empty.');
         }
 
-        if ('' === $this->audience) {
+        $audiences = array_values($audiences);
+        if ([] === $audiences) {
             throw new \InvalidArgumentException('The token audience must not be empty.');
         }
+
+        foreach ($audiences as $audience) {
+            if (!is_string($audience) || '' === $audience) {
+                throw new \InvalidArgumentException('The token audience must not be empty.');
+            }
+        }
+
+        $this->audiences = $audiences;
 
         if (($publicKeyPath === null) === ($this->jwksUri === null)) {
             throw new \InvalidArgumentException('Configure exactly one of a public key path or a JWKS URI.');
@@ -63,8 +73,8 @@ final class AccessTokenHandlerConfiguration
         return $this->issuer;
     }
 
-    public function getAudience(): string
+    public function getAudiences(): array
     {
-        return $this->audience;
+        return $this->audiences;
     }
 }
