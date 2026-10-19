@@ -88,7 +88,15 @@ class AccessTokenHandler implements AccessTokenHandlerInterface
             ? (array) $decoded->aud
             : [];
 
-        if (!in_array($this->configuration->getAudience(), $audiences, true)) {
+        $matchedAudience = null;
+        foreach ($audiences as $audience) {
+            if (in_array($audience, $this->configuration->getAudiences(), true)) {
+                $matchedAudience = $audience;
+                break;
+            }
+        }
+
+        if (null === $matchedAudience) {
             throw new BadCredentialsException('JWT aud is not valid.');
         }
 
@@ -100,7 +108,7 @@ class AccessTokenHandler implements AccessTokenHandlerInterface
         if (!empty($decoded->sub)) {
             $identifier = $decoded->sub;
         } else {
-            $identifier = $this->configuration->getAudience();
+            $identifier = $matchedAudience;
         }
 
         // Create user badge
