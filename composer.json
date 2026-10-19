@@ -52,15 +52,8 @@
     "conflict": {
         "symfony/symfony": "*"
     },
-    "extra": {
-        "symfony": {
-            "allow-contrib": false,
-            "require": "7.4.*"
-        }
-    },
     "config": {
         "allow-plugins": {
-            "symfony/flex": false,
             "symfony/runtime": false
         }
     },
