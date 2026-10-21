@@ -117,7 +117,7 @@ them and `#[IsGranted('read')]` will deny access. Check them with
 | Entity query API          | `Controller\QueryController::query`                           | Paginated, filterable queries over one entity type.                                           |
 | Locale listener           | `EventListener\LocaleListener`                                | Sets the request locale from the `user_lang` cookie.                                          |
 | Forwarded prefix listener | `EventListener\XForwardedPrefixListener`                      | Uses `X-Forwarded-Prefix` from trusted proxies as the base URL when generating URLs.          |
-| Request/response logger   | `EventListener\RequestResponseLogger`                         | Logs every request and response.                                                              |
+| Request/response logger   | `EventListener\RequestResponseLogger`                         | Logs every request and response, with credentials masked.                                     |
 | Deserializer              | `Serializer\Deserializer`                                     | Deserializes and validates a JSON request body into an object.                                |
 | Doctrine normalizers      | `Serializer\Normalizer\DoctrineManyToOneNormalizer`, `DoctrineManyToManyNormalizer` | Turn entity relations into IDs and back.                                |
 | Validators                | `Validator\UniqueEntry`, `PasswordStrength`, `JsonChoice`     | Constraints for uniqueness, password strength and lists of allowed values.                    |
@@ -240,6 +240,64 @@ Invalid input and query errors return `400` with `{"error": "..."}`.
 > fields you never serialize, such as password hashes. Expose it only to trusted,
 > authenticated clients, and keep `setType()` a no-op so clients cannot query a
 > different entity.
+
+### Request/response logger
+
+```yaml
+# config/services.yaml
+services:
+    sgoranov\IdentityLinkShared\EventListener\RequestResponseLogger: ~
+```
+
+`RequestResponseLogger` logs every request together with its response at `info`
+level, and requests that end in an exception at `error` level. Each entry has
+the method, path, headers, status, body lengths and the bodies, with sensitive
+data masked:
+
+- The `Authorization`, `Proxy-Authorization`, `Cookie` and `Set-Cookie` headers,
+  and any header whose name matches the sensitive field pattern, are replaced
+  with `*** MASKED ***`.
+- A body that is a JSON object or list is logged with the value of every field
+  whose name matches the pattern replaced with `*** MASKED ***`, however deeply
+  it is nested. The masked body is cut to 2,000 bytes, ending in
+  `... (TRUNCATED)`.
+- Any other body has no fields to mask, so it is replaced with
+  `*** BODY CANNOT BE MASKED ***`: form data, multipart, text, binary, invalid
+  JSON, or a bare JSON value such as `"hunter2"`. The `Content-Type` header is
+  ignored, because the client sets it.
+- A body over 1 MB takes too much memory to decode, so it is replaced with
+  `*** BODY IS TOO LARGE ***`.
+
+The default pattern is `RequestResponseLogger::DEFAULT_SENSITIVE_FIELD_PATTERN`:
+
+```
+/passw(or)?d|secret|tokens?(_hint)?$|credential|api[_-]?key|^(code|code_verifier|otp|pin)$/i
+```
+
+It matches field names that contain `password`, `secret`, `credential` or an API
+key, such as `plainPassword` or `client_secret`, and names that end in `token`,
+such as `access_token`, `refresh_token`, `id_token`, `csrf_token` or `_token`.
+Public OAuth metadata like `token_type` and `token_endpoint` stays readable.
+`code`, `code_verifier`, `otp` and `pin` only match as whole names, so
+`countryCode` and `opinion` are logged as is. Replace the pattern, or log bodies
+and headers only in debug mode, with the constructor arguments. With
+`$logBodies` set to `false`, bodies are replaced with
+`*** BODY LOGGING IS DISABLED ***`. With `$logHeaders` set to `false`, the
+`headers` field is left out:
+
+```yaml
+services:
+    sgoranov\IdentityLinkShared\EventListener\RequestResponseLogger:
+        arguments:
+            $sensitiveFieldPattern: '/passw(or)?d|secret|token|^pwd$/i'
+            $logBodies: '%kernel.debug%'
+            $logHeaders: '%kernel.debug%'
+```
+
+> [!NOTE]
+> Masking works by field name. A value under a name the pattern does not match,
+> such as `pwd` or `pass1`, is logged unmasked. Extend the pattern for your field
+> names, or set `$logBodies` to `false`.
 
 ### Serialization
 

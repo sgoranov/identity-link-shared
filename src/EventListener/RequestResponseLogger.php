@@ -15,34 +15,47 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 
 class RequestResponseLogger
 {
-    private const MAX_RESPONSE_LENGTH = 2000;
+    public const DEFAULT_SENSITIVE_FIELD_PATTERN = '/passw(or)?d|secret|tokens?(_hint)?$|credential|api[_-]?key|^(code|code_verifier|otp|pin)$/i';
+
+    private const MAX_DECODED_BODY_LENGTH = 1_000_000;
+    private const MAX_LOGGED_BODY_LENGTH = 2000;
+    private const MASK = '*** MASKED ***';
+    private const BODY_LOGGING_DISABLED = '*** BODY LOGGING IS DISABLED ***';
+    private const BODY_TOO_LARGE = '*** BODY IS TOO LARGE ***';
+    private const BODY_CANNOT_BE_MASKED = '*** BODY CANNOT BE MASKED ***';
+    private const SENSITIVE_HEADERS = ['authorization', 'proxy-authorization', 'cookie', 'set-cookie'];
 
     public function __construct(
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly string $sensitiveFieldPattern = self::DEFAULT_SENSITIVE_FIELD_PATTERN,
+        private readonly bool $logBodies = true,
+        private readonly bool $logHeaders = true,
     )
     {
+        if (false === @preg_match($this->sensitiveFieldPattern, '')) {
+            throw new \InvalidArgumentException(sprintf('The sensitive field pattern "%s" is not a valid regular expression.', $this->sensitiveFieldPattern));
+        }
     }
 
     #[AsEventListener(event: RequestEvent::class)]
     public function onRequest(RequestEvent $event): void
     {
         $request = $event->getRequest();
-        $headers = $request->headers->all();
+        $content = $request->getContent();
 
-        // Mask sensitive values
-        $sensitiveKeys = ['authorization', 'cookie', 'set-cookie'];
-        foreach ($headers as $key => $value) {
-            if (in_array(strtolower($key), $sensitiveKeys, true)) {
-                $headers[$key] = ['*** MASKED ***'];
-            }
-        }
-
-        $request->attributes->set('request_log', [
+        $logData = [
             'method' => $request->getMethod(),
             'path' => $request->getPathInfo(),
-            'headers' => $headers,
-            'body' => $request->getContent(),
-        ]);
+        ];
+
+        if ($this->logHeaders) {
+            $logData['headers'] = $this->maskHeaders($request->headers->all());
+        }
+
+        $logData['body_length'] = strlen($content);
+        $logData['body'] = $this->maskBody($content);
+
+        $request->attributes->set('request_log', $logData);
     }
 
     #[AsEventListener(event: ResponseEvent::class)]
@@ -94,32 +107,90 @@ class RequestResponseLogger
     {
         $content = $response->getContent();
         $content = is_string($content) ? $content : '';
-        $length = strlen($content);
 
-        $logData = [
-            'response_length' => $length,
+        return [
+            'response_length' => strlen($content),
+            'response_body' => $this->maskBody($content),
         ];
-
-        $contentType = strtolower((string) $response->headers->get('Content-Type', ''));
-        $contentType = trim(explode(';', $contentType, 2)[0]);
-
-        if ($this->isResponseBodyLoggable($contentType, $length)) {
-            $logData['response_body'] = $content;
-        }
-
-        return $logData;
     }
 
-    private function isResponseBodyLoggable(string $contentType, int $length): bool
+    private function maskHeaders(array $headers): array
     {
-        if ($contentType === '' || $length > self::MAX_RESPONSE_LENGTH) {
-            return false;
+        foreach ($headers as $name => $values) {
+            if ($this->isSensitiveHeader((string) $name)) {
+                $headers[$name] = [self::MASK];
+            }
         }
 
-        if (str_starts_with($contentType, 'application/json') || str_ends_with($contentType, '+json')) {
-            return true;
+        return $headers;
+    }
+
+    /**
+     * A JSON object or list is logged with its sensitive fields masked, cut to MAX_LOGGED_BODY_LENGTH bytes.
+     * Any other body (form data, text, binary, invalid JSON, a bare JSON value) has no fields to mask, so it is not logged.
+     * Neither is a body over MAX_DECODED_BODY_LENGTH bytes, because decoding it takes about ten times its size in memory.
+     * The Content-Type header is ignored, because the client sets it.
+     */
+    private function maskBody(string $content): string
+    {
+        if ('' === $content) {
+            return '';
         }
 
-        return false;
+        if (!$this->logBodies) {
+            return self::BODY_LOGGING_DISABLED;
+        }
+
+        if (strlen($content) > self::MAX_DECODED_BODY_LENGTH) {
+            return self::BODY_TOO_LARGE;
+        }
+
+        $data = json_decode($content, true);
+
+        if (!is_array($data)) {
+            return self::BODY_CANNOT_BE_MASKED;
+        }
+
+        $data = $this->maskSensitiveFields($data);
+        $json = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        // Encoding fails only for numbers JSON cannot hold, such as 1e999
+        if (false === $json) {
+            return self::BODY_CANNOT_BE_MASKED;
+        }
+
+        if (strlen($json) > self::MAX_LOGGED_BODY_LENGTH) {
+            // Cuts at a character boundary, so a multibyte character is never split
+            return mb_strcut($json, 0, self::MAX_LOGGED_BODY_LENGTH, 'UTF-8').'... (TRUNCATED)';
+        }
+
+        return $json;
+    }
+
+    /**
+     * Replaces the value of every sensitive field with the mask, however deeply it is nested.
+     */
+    private function maskSensitiveFields(array $data): array
+    {
+        foreach ($data as $field => $value) {
+            if ($this->isSensitiveField((string) $field)) {
+                $data[$field] = self::MASK;
+            } elseif (is_array($value)) {
+                $data[$field] = $this->maskSensitiveFields($value);
+            }
+        }
+
+        return $data;
+    }
+
+    private function isSensitiveField(string $name): bool
+    {
+        // A matching error counts as sensitive, so values are never logged by mistake
+        return 0 !== preg_match($this->sensitiveFieldPattern, $name);
+    }
+
+    private function isSensitiveHeader(string $name): bool
+    {
+        return in_array(strtolower($name), self::SENSITIVE_HEADERS, true) || $this->isSensitiveField($name);
     }
 }
