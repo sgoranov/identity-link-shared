@@ -21,6 +21,7 @@ final class User implements UserInterface
         return $this->roles;
     }
 
+    #[\Deprecated]
     public function eraseCredentials(): void
     {
         // there is no sensitive data to remove
