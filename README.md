@@ -81,6 +81,7 @@ All class names are relative to `sgoranov\IdentityLinkShared`.
 | `Controller\QueryController`             | Paginated, filterable Doctrine queries over one entity type.    |
 | `EventListener\LocaleListener`           | Sets the request locale from the `user_lang` cookie.            |
 | `EventListener\XForwardedPrefixListener` | Uses `X-Forwarded-Prefix` from trusted proxies as the base URL. |
+| `Monolog\RequestIdProcessor`             | Adds `X-Request-Id` to every log line as `extra.request_id`.    |
 | `Serializer\Deserializer`                | Deserializes and validates a JSON request body into an object.  |
 | `Serializer\Normalizer\*`                | Turn Doctrine entity relations into IDs and back.               |
 | `Validator\*`                            | `UniqueEntry`, `PasswordStrength` and `JsonChoice` constraints. |
