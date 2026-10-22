@@ -7,8 +7,8 @@
 [![Packagist](https://img.shields.io/packagist/v/sgoranov/identity-link-shared)](https://packagist.org/packages/sgoranov/identity-link-shared)
 
 Shared Symfony building blocks for Identity Link services: JWT access token
-authentication, request/response logging, Doctrine-aware serialization and
-validation, and a few ready-made controllers.
+authentication, Doctrine-aware serialization and validation, and a few
+ready-made controllers.
 
 ## Installation
 
@@ -81,7 +81,6 @@ All class names are relative to `sgoranov\IdentityLinkShared`.
 | `Controller\QueryController`             | Paginated, filterable Doctrine queries over one entity type.    |
 | `EventListener\LocaleListener`           | Sets the request locale from the `user_lang` cookie.            |
 | `EventListener\XForwardedPrefixListener` | Uses `X-Forwarded-Prefix` from trusted proxies as the base URL. |
-| `EventListener\RequestResponseLogger`    | Logs every request and response.                                |
 | `Serializer\Deserializer`                | Deserializes and validates a JSON request body into an object.  |
 | `Serializer\Normalizer\*`                | Turn Doctrine entity relations into IDs and back.               |
 | `Validator\*`                            | `UniqueEntry`, `PasswordStrength` and `JsonChoice` constraints. |
