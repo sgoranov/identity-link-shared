@@ -8,6 +8,7 @@ use Doctrine\DBAL\ParameterType;
 use sgoranov\IdentityLinkShared\Api\DTO\AbstractQueryRequest;
 use sgoranov\IdentityLinkShared\Serializer\Deserializer;
 use Doctrine\ORM\EntityManagerInterface;
+use SortDirection;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -53,13 +54,11 @@ class QueryController extends AbstractController
             }
         }
 
-        if ($request->getOrderBy() !== null) {
-            foreach ($request->getOrderBy() as $sort => $order) {
-                $queryBuilder->addOrderBy($sort, $order);
-            }
-        }
-
         try {
+            foreach ($request->getOrderBy() ?? [] as $sort => $order) {
+                $queryBuilder->addOrderBy($sort, $this->getSortDirection($order));
+            }
+
             $result = $queryBuilder->getQuery()->getResult();
         } catch (\Exception $e) {
             return new JsonResponse([
@@ -84,5 +83,14 @@ class QueryController extends AbstractController
                 'hasMore' => $hasMore,
             ]
         ]);
+    }
+
+    private function getSortDirection(mixed $order): SortDirection
+    {
+        return match (is_string($order) ? strtolower($order) : $order) {
+            'asc', null => SortDirection::Ascending,
+            'desc' => SortDirection::Descending,
+            default => throw new \InvalidArgumentException('Invalid sort direction.'),
+        };
     }
 }
