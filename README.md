@@ -1,11 +1,5 @@
 # Identity Link Shared
 
-![License](https://img.shields.io/github/license/sgoranov/identity-link-shared)
-![Issues](https://img.shields.io/github/issues/sgoranov/identity-link-shared)
-[![PHPUnit Tests](https://github.com/sgoranov/identity-link-shared/actions/workflows/phpunit.yml/badge.svg)](https://github.com/sgoranov/identity-link-shared/actions/workflows/phpunit.yml)
-[![Security Audit](https://github.com/sgoranov/identity-link-shared/actions/workflows/vulnerability-scan.yml/badge.svg)](https://github.com/sgoranov/identity-link-shared/actions/workflows/vulnerability-scan.yml)
-[![Packagist](https://img.shields.io/packagist/v/sgoranov/identity-link-shared)](https://packagist.org/packages/sgoranov/identity-link-shared)
-
 Shared Symfony building blocks for Identity Link services: JWT access token
 authentication, Doctrine-aware serialization and validation, and a few
 ready-made controllers.
@@ -110,5 +104,5 @@ docker compose run --rm php composer audit    # check dependencies for known vul
 
 ## License
 
-This is open source software licensed under the [MIT License](LICENSE), which permits reuse, 
+Identity Link is open source software licensed under the [MIT License](LICENSE), which permits reuse,
 modification, and distribution with minimal restrictions.
